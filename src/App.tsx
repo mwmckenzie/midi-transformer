@@ -3,7 +3,7 @@ import { useLibrary, type LoadError } from './state/library';
 import { writeMidi } from './midi/write';
 import { demoCombined, demoSeparate } from './midi/demo';
 import { download, makeZip } from './state/zip';
-import { ChannelBaseContext, CommitInput } from './components/common';
+import { ChannelBaseContext, CommitInput, ConfirmButton } from './components/common';
 import { OverviewPanel } from './components/OverviewPanel';
 import { MetadataPanel } from './components/MetadataPanel';
 import { ChannelsPanel } from './components/ChannelsPanel';
@@ -178,12 +178,10 @@ export default function App() {
               <button className="btn small" disabled={!file} onClick={() => exportFiles(checked.size ? [...checked] : [file!.id])}>
                 {checked.size > 1 ? 'Export .zip' : 'Export .mid'}
               </button>
-              <button className="btn small danger" disabled={!file} onClick={() => {
-                const ids = checked.size ? [...checked] : [file!.id];
-                if (!confirm(`Remove ${ids.length} file${ids.length === 1 ? '' : 's'} from the library? Export first if you want to keep edits.`)) return;
-                lib.removeFiles(ids);
+              <ConfirmButton className="btn small danger" disabled={!file} confirmLabel="Click again to remove" onConfirm={() => {
+                lib.removeFiles(checked.size ? [...checked] : [file!.id]);
                 setChecked(new Set());
-              }}>Remove</button>
+              }}>Remove</ConfirmButton>
             </div>
           </aside>
 
@@ -195,7 +193,7 @@ export default function App() {
                   <div className="spacer" />
                   <button className="btn small" disabled={!file.past.length} title={file.past.length ? `Undo ${file.past[file.past.length - 1].label}` : ''} onClick={() => lib.undo(file.id)}>↶ Undo</button>
                   <button className="btn small" disabled={!file.future.length} onClick={() => lib.redo(file.id)}>↷ Redo</button>
-                  <button className="btn small" disabled={!file.dirty} onClick={() => confirm('Discard all edits to this file?') && lib.revert(file.id)}>Revert</button>
+                  <button className="btn small" disabled={!file.dirty} title="Go back to the file as loaded (undoable)" onClick={() => lib.revert(file.id)}>Revert</button>
                   <button className="btn small primary" onClick={() => exportFiles([file.id])}>Export .mid</button>
                 </div>
                 {file.past.length > 0 && <div className="muted small history">Last change: {file.past[file.past.length - 1].label}</div>}

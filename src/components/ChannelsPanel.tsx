@@ -94,7 +94,7 @@ export function ChannelsPanel({ file, lib, checked }: { file: LibFile; lib: Libr
                 <td>
                   <button
                     className="btn icon" title="Delete all events on this channel"
-                    onClick={() => confirm(`Delete every event on channel ${ch(c.channel)}?`) &&
+                    onClick={() =>
                       lib.update(ids, `Delete ch ${ch(c.channel)}`, (f) => ({ ...f, midi: deleteChannel(f.midi, c.channel) }))}
                   >✕</button>
                 </td>
