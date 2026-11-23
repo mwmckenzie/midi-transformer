@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { extractNotes, lastTick, voiceId, type Note } from '../analysis/notes';
+import { extractNotes, lastTick, tempoMap, ticksToSeconds, voiceId, type Note } from '../analysis/notes';
 import { computeVoiceStats, type VoiceStats } from '../analysis/voices';
 import { detectHands, type HandDetection, type HandRole } from '../analysis/hands';
 import { SPLIT_ALGORITHMS, defaultParams, getAlgorithm, type Hand, type SplitAlgorithm } from '../analysis/split';
@@ -58,10 +58,13 @@ export function HandsPanel({ file, lib }: { file: LibFile; lib: Library }) {
 
   const algo = getAlgorithm(algoId);
   const splitNotes = useMemo(() => notes.filter((n) => roles[voiceId(n)] === 'split'), [notes, roles]);
-  const runAlgo = (a: SplitAlgorithm) =>
-    splitNotes.length ? a.run(splitNotes, paramsByAlgo[a.id], { ticksPerBeat: ticksPerBeat(m) }) : new Map<string, Hand>();
+  const ctx = useMemo(() => {
+    const map = tempoMap(m);
+    return { ticksPerBeat: ticksPerBeat(m), seconds: (t: number) => ticksToSeconds(m, t, map) };
+  }, [m]);
+  const runAlgo = (a: SplitAlgorithm) => (splitNotes.length ? a.run(splitNotes, paramsByAlgo[a.id], ctx) : new Map<string, Hand>());
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const algoHands = useMemo(() => runAlgo(algo), [algo, splitNotes, paramsByAlgo, m]);
+  const algoHands = useMemo(() => runAlgo(algo), [algo, splitNotes, paramsByAlgo, ctx]);
   const hands = useMemo(() => assign(notes, roles, algoHands, overrides), [notes, roles, algoHands, overrides]);
 
   const counts = { R: 0, L: 0 };

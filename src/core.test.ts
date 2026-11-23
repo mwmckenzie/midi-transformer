@@ -5,7 +5,9 @@ import { demoCombined, demoSeparate, demoTruth } from './midi/demo';
 import { extractNotes } from './analysis/notes';
 import { computeVoiceStats } from './analysis/voices';
 import { detectHands } from './analysis/hands';
-import { SPLIT_ALGORITHMS, defaultParams } from './analysis/split';
+import { SPLIT_ALGORITHMS, defaultParams, getAlgorithm, type Hand } from './analysis/split';
+import { clusterByTime } from './analysis/splitBeam';
+import type { Note } from './analysis/notes';
 import { applyHandAssignment, assignByVoice } from './transforms/handSplit';
 import { applyBatch } from './transforms/batch';
 import { remapChannels, setProgram, summarizeChannels, swapChannels } from './transforms/channels';
@@ -135,5 +137,60 @@ describe('hand detection and splitting', () => {
     const out = applyHandAssignment(f, notes, assignByVoice(notes, { '1:5': 'R', '2:2': 'L' }), { rightChannel: 0, leftChannel: 1, layout: 'inPlace' });
     const s = summarizeChannels(out);
     expect(s.find((c) => c.channel === 1)!.tracks).toEqual([2]);
+  });
+});
+
+describe('phrase look-ahead split', () => {
+  // Human-style texture: long held bass, inner voices near middle C, right-hand runs that dip down, timing jitter.
+  function human(seed: number) {
+    let s = seed;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const notes: (Note & { truth: Hand })[] = [];
+    let id = 0;
+    const add = (p: number, st: number, d: number, truth: Hand) => {
+      const j = Math.round((rnd() - 0.5) * 90);
+      notes.push({ id: String(id++), track: 0, channel: 0, pitch: p, velocity: 70, start: Math.max(0, st + j), end: st + j + d, onIndex: 0, offIndex: 0, truth });
+    };
+    for (let bar = 0; bar < 40; bar++) {
+      const b0 = bar * 1920;
+      const root = 36 + Math.floor(rnd() * 12);
+      if (bar % 2 === 0) {
+        add(root, b0, 4800, 'L');
+        add(root + 7, b0 + 60, 4200, 'L');
+      }
+      const inner = 52 + Math.floor(rnd() * 12);
+      add(inner, b0 + 960, 700, 'L');
+      add(inner + 3, b0 + 1000, 650, 'L');
+      const top = 70 + Math.floor(rnd() * 14);
+      add(top, b0, 900, 'R');
+      const dip = rnd() < 0.4 ? 12 : 4;
+      for (let k = 0; k < 6; k++) add(top - Math.round((k / 5) * dip) - (k % 2) * 2, b0 + 960 + k * 160, 150, 'R');
+    }
+    return notes;
+  }
+
+  it('never leaves the hands swapped for long', () => {
+    const algo = getAlgorithm('beam');
+    for (const seed of [1, 2, 3]) {
+      const notes = human(seed);
+      const hands = algo.run(notes, defaultParams(algo), { ticksPerBeat: 480 });
+      let run = 0;
+      let worst = 0;
+      let ok = 0;
+      for (const n of [...notes].sort((a, b) => a.start - b.start)) {
+        if (hands.get(n.id) === n.truth) {
+          ok++;
+          run = 0;
+        } else worst = Math.max(worst, ++run);
+      }
+      expect(worst).toBeLessThanOrEqual(4);
+      expect(ok / notes.length).toBeGreaterThan(0.8);
+    }
+  });
+
+  it('groups chord notes by time, not ticks', () => {
+    const n = (id: string, pitch: number, start: number): Note => ({ id, track: 0, channel: 0, pitch, velocity: 64, start, end: start + 100, onIndex: 0, offIndex: 0 });
+    const cl = clusterByTime([n('a', 60, 0), n('b', 64, 20), n('c', 67, 200)], 0.03, (t) => t / 1000);
+    expect(cl.map((c) => c.notes.map((x) => x.id))).toEqual([['a', 'b'], ['c']]);
   });
 });
