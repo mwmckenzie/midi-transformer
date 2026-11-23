@@ -21,13 +21,22 @@ Nothing is uploaded: files are parsed in the browser and kept in IndexedDB on yo
 - **Detection** scores each (track, channel) "voice" as right hand, left hand, both hands, or other, with reasons
   (track names, median pitch, how often simultaneous notes exceed one hand's reach, register gaps, density).
 - **Split algorithms** for voices holding both hands (`src/analysis/split.ts`):
-  - *Chord-aware with hand tracking*: cuts each chord where it best fits two hands (reach, ≤5 notes, continuity).
+  - *Phrase look-ahead* (default): beam search that keeps the best readings of the whole piece, with a register
+    prior, no hand crossing, chord grouping in milliseconds and softer limits from long-held notes. This stops a single
+    wrong guess from swapping the hands for bars, which the note-by-note algorithm could do on human performances.
+  - *Chord-aware (note by note)*: greedy; cuts each chord where it best fits two hands (reach, ≤5 notes, continuity).
   - *Moving split point*: splits at the largest register gap within a sliding window.
   - *Fixed split point*.
 - **Compare** current channels vs. the proposal (and optionally every algorithm) in stacked piano rolls;
   click notes to flip them manually.
 - **Apply** right hand → channel 0 and left hand → channel 1 (configurable), in place or as two new tracks,
   copying instrument/pedal/controller events to both hands. Apply to the file or save as a copy.
+
+### Measuring split accuracy
+
+`eval/split-accuracy.test.ts` scores every algorithm against files whose hands are already in tracks named
+"right"/"left" (e.g. piano-midi.de files): `MIDI_DIR=/path/to/files npx vitest run eval --silent=false`.
+On 15 piano-midi.de pieces: phrase look-ahead 89.5% of notes correct, chord-aware 86.6%, moving 79.1%, fixed 78.8%.
 
 ## Architecture
 

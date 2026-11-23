@@ -1,4 +1,5 @@
 import type { Note } from './notes';
+import { beamSplit } from './splitBeam';
 
 export type Hand = 'R' | 'L';
 
@@ -15,6 +16,8 @@ export interface ParamSpec {
 
 export interface SplitContext {
   ticksPerBeat: number;
+  /** Converts a tick to seconds using the file's tempo map. Falls back to 120 BPM when absent. */
+  seconds?: (tick: number) => number;
 }
 
 /**
@@ -96,7 +99,7 @@ const movingSplit: SplitAlgorithm = {
  */
 const chordContinuity: SplitAlgorithm = {
   id: 'chord',
-  name: 'Chord-aware with hand tracking',
+  name: 'Chord-aware (note by note)',
   description:
     'Groups notes that start together, then cuts each group where it best fits two hands: each hand stays ' +
     'within its reach, holds at most five notes, and stays near where it was just playing.',
@@ -177,7 +180,7 @@ const chordContinuity: SplitAlgorithm = {
   },
 };
 
-export const SPLIT_ALGORITHMS: SplitAlgorithm[] = [chordContinuity, movingSplit, fixedSplit];
+export const SPLIT_ALGORITHMS: SplitAlgorithm[] = [beamSplit, chordContinuity, movingSplit, fixedSplit];
 
 export function getAlgorithm(id: string): SplitAlgorithm {
   return SPLIT_ALGORITHMS.find((a) => a.id === id) ?? SPLIT_ALGORITHMS[0];
